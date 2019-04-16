@@ -1,0 +1,8 @@
+cmake_minimum_required(
+    VERSION 3.12)
+
+set(LUE_BUILD_DATA_MODEL ON CACHE BOOL "")
+set(LUE_DATA_MODEL_WITH_PYTHON_API ON CACHE BOOL "")
+set(LUE_DATA_MODEL_WITH_UTILITIES ON CACHE BOOL "")
+
+add_subdirectory(lue)

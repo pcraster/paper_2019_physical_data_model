@@ -1,0 +1,10 @@
+name: paper_2019_physical_data_model
+channels:
+- conda-forge
+- defaults
+dependencies:
+- conan
+- docopt
+- numpy
+- setuptools
+- sphinx
