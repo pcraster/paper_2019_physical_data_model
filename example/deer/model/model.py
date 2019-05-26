@@ -18,9 +18,9 @@ Usage:
 
 Options:
     dataset         Pathname of dataset to create
-    --area_shape=<shape>  Shape of biomass area [default: 1000x1000]
+    --area_shape=<shape>  Shape of biomass area [default: 300x200]
     --nr_timesteps=<steps>  Number of timesteps for iteration [default: 500]
-    --nr_deer=<deer>  Number of deer to simulate [default: 100]
+    --nr_deer=<deer>  Number of deer to simulate [default: 25]
     -h --help       Show this screen
 
 The shape of the area is in 100x100 meter cells
