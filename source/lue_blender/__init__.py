@@ -1,5 +1,7 @@
 from . debug import *
 import bmesh
+import numpy as np
+import math
 
 
 def save_as(
@@ -49,7 +51,8 @@ def look_at(
 def add_polyline(
         collection,
         id,
-        coordinates):
+        coordinates,
+        materials):
 
     # Create the curve data-block
     curve_data = bpy.data.curves.new("curve_data-{}".format(id), type="CURVE")
@@ -73,13 +76,7 @@ def add_polyline(
     curve_object = bpy.data.objects.new(
         "curve_object-{}".format(id), curve_data)
 
-    # Setup a material
-    material = bpy.data.materials.new("line_material-{}".format(id))
-    material.diffuse_color = (0.1, 0.7, 0.1, 1.0)
-    material.metallic = 0.7
-    material.roughness = 0.5
-    # material.use_shadeless = True
-    curve_object.data.materials.append(material)
+    curve_object.data.materials.append(materials[id % type(id)(len(materials))])
 
     # Attach to scene and validate context
     collection.objects.link(curve_object)
@@ -147,6 +144,8 @@ def add_bounding_box(
     bounding_box_bmesh.to_mesh(bounding_box_data)
     bounding_box_bmesh.free()
 
+    return bounding_box_object
+
 
 def update_extent(
     min_x_cur, max_x_cur, min_y_cur, max_y_cur, min_z_cur, max_z_cur,
@@ -160,3 +159,85 @@ def update_extent(
     max_z = max_z_new if max_z_cur is None else max(max_z_cur, max_z_new)
 
     return min_x, max_x, min_y, max_y, min_z, max_z
+
+
+def create_materials(
+        colors,
+        alpha):
+    materials = []
+
+    for color in colors:
+        material = bpy.data.materials.new("")
+        material.diffuse_color = *color, alpha
+        materials.append(material)
+
+    return materials
+
+
+def set_material_metallic(
+        materials,
+        metallic):
+
+    for material in materials:
+        material.metallic = 0.7
+
+
+def set_material_roughness(
+        materials,
+        roughness):
+
+    for material in materials:
+        material.roughness = 0.7
+
+
+def classify(
+        value,
+        min_value,
+        max_value,
+        nr_classes):
+
+    assert min_value <= value <= max_value
+
+    value_range = max_value - min_value
+
+    if value_range == 0:
+        return 0
+
+    class_range = value_range / nr_classes
+    idx = (value - min_value) / class_range
+
+    return int(math.floor(idx))
+
+
+def assign_colors_to_grid_cells(
+        grid_data,
+        palette,
+        grid_mesh,
+        array,
+        min_value,
+        max_value):
+
+    assert array.size > 0
+    assert len(palette) > 0
+
+    nr_materials = len(palette)
+
+    materials = create_materials(palette, alpha=1.0)
+
+    for material in materials:
+        grid_data.materials.append(material)
+
+    grid_mesh.faces.ensure_lookup_table()
+
+    nr_rows, nr_cols = array.shape
+    i = 0
+
+    for r in range(nr_rows):
+        for c in range(nr_cols):
+            # Assign a material based on the cell's value
+            cell_value = array[r][c]
+            material_idx = classify(
+                cell_value, min_value, max_value, nr_materials)
+            grid_mesh.faces[i].material_index = material_idx
+
+            i += 1

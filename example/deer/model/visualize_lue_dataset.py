@@ -5,11 +5,13 @@ import bmesh
 import bpy
 import mathutils
 
+import seaborn as sns
+
 import numpy as np
 
+import os.path
+import random
 import sys
-
-
 
 
 # 6. Colour each line differently
@@ -45,11 +47,11 @@ import sys
 ### # mesh.tessfaces.foreach_set("vertices_raw", faces)
 
 
-
 def add_track(
         collection,
         property_set,
-        object_id):
+        object_id,
+        scale_z):
 
     time_domain = property_set.time_domain
     space_domain = property_set.space_domain
@@ -66,6 +68,11 @@ def add_track(
     set_idx = 0
 
     min_x, min_y, max_x, max_y, min_z, max_z = 6 * (None,)
+
+    materials = create_materials(
+        colors=sns.color_palette("Set1", 9), alpha=1.0)
+    set_material_metallic(materials, 0.7)
+    set_material_roughness(materials, 0.5)
 
     for b in range(time_domain.value.nr_boxes):
         for t in range(time_domain.value.nr_counts):
@@ -88,7 +95,7 @@ def add_track(
                 object_idx = object_idx[0]
 
                 x, y = space_domain.value[set_begin_idx + object_idx]
-                z = c + 0.5  # Connect centers of time cells
+                z = (c + 0.5) * scale_z  # Connect centers of time cells
 
                 # Add location of object to array
                 locations[c] = [x, y, z]
@@ -102,7 +109,7 @@ def add_track(
 
                 set_idx += 1
 
-            add_polyline(collection, object_id, locations)
+            add_polyline(collection, object_id, locations, materials)
 
     return min_x, min_y, max_x, max_y, min_z, max_z
 
@@ -152,7 +159,8 @@ def assert_time_domain_as_expected(
 
 def add_tracks(
         collection,
-        property_set):
+        property_set,
+        scale_z):
 
     """
     """
@@ -169,6 +177,7 @@ def add_tracks(
     # These are the IDs of object for which information is stored. For
     # each of them, add a track to the collection.
     object_ids = set(property_set.object_tracker.active_object_id[:])
+    print(object_ids)
 
     min_x, min_y, max_x, max_y, min_z, max_z = 6 * (None,)
 
@@ -176,14 +185,19 @@ def add_tracks(
         min_x_track, min_y_track, \
         max_x_track, max_y_track, \
         min_z_track, max_z_track = \
-            add_track(collection, property_set, object_id)
+            add_track(collection, property_set, object_id, scale_z)
 
-        min_x = min_x_track if min_x is None else min(min_x_track, min_x)
-        max_x = max_x_track if max_x is None else max(max_x_track, max_x)
-        min_y = min_y_track if min_y is None else min(min_y_track, min_y)
-        max_y = max_y_track if max_y is None else max(max_y_track, max_y)
-        min_z = min_z_track if min_z is None else min(min_z_track, min_z)
-        max_z = max_z_track if max_z is None else max(max_z_track, max_z)
+        ### min_x = min_x_track if min_x is None else min(min_x_track, min_x)
+        ### max_x = max_x_track if max_x is None else max(max_x_track, max_x)
+        ### min_y = min_y_track if min_y is None else min(min_y_track, min_y)
+        ### max_y = max_y_track if max_y is None else max(max_y_track, max_y)
+        ### min_z = min_z_track if min_z is None else min(min_z_track, min_z)
+        ### max_z = max_z_track if max_z is None else max(max_z_track, max_z)
+
+        min_x, max_x, min_y, max_y, min_z, max_z = update_extent(
+            min_x, max_x, min_y, max_y, min_z, max_z,
+            min_x_track, max_x_track, min_y_track, max_y_track,
+            min_z_track, max_z_track)
 
     return min_x, min_y, max_x, max_y, min_z, max_z
 
@@ -191,7 +205,8 @@ def add_tracks(
 def add_field(
         collection,
         property_set,
-        property_name):
+        property_name,
+        scale_z):
 
     assert_time_domain_as_expected(property_set)
     time_domain = property_set.time_domain
@@ -240,96 +255,70 @@ def add_field(
     assert len(set(object_tracker.active_object_id[:])) == 1
     object_id = object_tracker.active_object_id[0]
 
+    all_arrays = property.value[object_id][:]
+    min_value = np.min(all_arrays)
+    max_value = np.max(all_arrays)
+    del all_arrays
+
     for b in range(time_domain.value.nr_boxes):
         for t in range(time_domain.value.nr_counts):
             nr_time_cells = time_domain.value.count[b]
 
-            for c in range(nr_time_cells):
+            for c in range(0, nr_time_cells):
 
                 # A 2D array for the current location in time can be
                 # found in the property value
                 array = property.value[object_id][c]
-                # TODO Colour grid cells according to array values
 
                 grid_data = bpy.data.meshes.new(
                     "grid_data-{}-{}".format(property_name, c))
                 grid_object = bpy.data.objects.new(
                     "grid_object-{}-{}".format(property_name, c), grid_data)
 
-                # material = bpy.data.materials.new(
-                #     "grid_material-{}_{}".format(r, c))
-                # material.diffuse_color = (0.7, 0.2, 0.2, 0.5)
-                # material.metallic = 0.0
-                # material.roughness = 0.5
-                # grid_object.data.materials.append(material)
-
                 collection.objects.link(grid_object)
 
+                # Create empty bmesh
                 grid_mesh = bmesh.new()
 
+                # Create point grid. To end up with nr_rows x nr_cols cells,
+                # add one to each dimension.
                 bmesh.ops.create_grid(
-                    grid_mesh, x_segments=nr_cols, y_segments=nr_rows, size=1.0)
+                    grid_mesh, x_segments=nr_cols+1, y_segments=nr_rows+1,
+                    size=1.0)
 
-                z = c + 0.5  # Connect centers of time cells
+                assign_colors_to_grid_cells(
+                    grid_data,
+                    sns.cubehelix_palette(8, rot=-0.4),
+                    # sns.color_palette(),
+                    grid_mesh, array, min_value, max_value)
+
+                z = (c + 0.5) * scale_z  # Connect centers of time cells
 
                 extents = [
                     max_x - min_x,
                     max_y - min_y,
                     0]
-
                 grid_object.scale = (
-                    extents[0] / 2, extents[1] / 2, 0)
+                    extents[0] / 2,
+                    extents[1] / 2,
+                    1.0)
                 grid_object.location = (
-                    min_x + extents[0] / 2, min_y + extents[1] / 2, z)
+                    min_x + extents[0] / 2,
+                    min_y + extents[1] / 2,
+                    z)
 
+                # Convert bmesh to Blender representation
                 grid_mesh.to_mesh(grid_data)
                 grid_mesh.free()
+
 
                 min_z = c if min_z is None else min(z, min_z)
                 max_z = c if max_z is None else max(z, max_z)
 
-                # TODO set colours:
-                # https://blender.stackexchange.com/questions/909/how-can-i-set-and-get-the-vertex-color-property
-
-                break
-
-
-    # bmesh.ops.planar_faces(grid_mesh, faces, /
-
-    # bmesh.ops.mesh.primitive_plan_add(bounding_box_bmesh, size=1.0)
-
-    # grid_object = bpy.ops.mesh.primitive_plane_add(
-
-
-
-
-
-
-    # for r in range(nr_rows):
-    #     for c in range(nr_cols):
-    #         cell_data = bpy.data.meshes.new("cell_data-{}_{}".format(r, c))
-    #         cell_object = bpy.data.objects.new(
-    #             "cell_object-{}_{}".format(r, c), cell_data)
-
-    #         material = bpy.data.materials.new(
-    #             "cell_material-{}_{}".format(r, c))
-    #         material.diffuse_color = (0.7, 0.2, 0.2, 0.5)
-    #         material.metallic = 0.0
-    #         material.roughness = 0.5
-    #         cell_object.data.materials.append(material)
-
-    #         collection.objects.link(cell_object)
-
-    #         cell_mesh = bmesh.new()
-
-    #         bmesh.ops.planar_faces(cell_mesh, faces, /
-
-
-    #         # bmesh.ops.mesh.primitive_plan_add(bounding_box_bmesh, size=1.0)
-
-    #         cell_object = bpy.ops.mesh.primitive_plane_add(
-
-
+                if c % 10 != 0:
+                    # Initially, hide most layers
+                    grid_object.hide_set(True)
+                    grid_object.hide_render = True
 
     return min_x, min_y, max_x, max_y, min_z, max_z
 
@@ -340,9 +329,12 @@ def add_field(
 start_with_empty_file()
 scene = bpy.context.scene
 
-dataset_pathname = "/tmp/deer/deer.lue"
+dataset_name = "deer.lue"
+dataset_pathname = os.path.join("/tmp/deer", dataset_name)
 dataset = lue.open_dataset(dataset_pathname)
-dataset_collection = scene.collection
+# dataset_collection = scene.collection
+dataset_collection = bpy.data.collections.new(dataset_name)
+scene.collection.children.link(dataset_collection)
 
 
 # Stuff specific for a phenomenon ----------------------------------------------
@@ -353,6 +345,8 @@ min_x, min_y, max_x, max_y, min_z, max_z = 6 * (None,)
 # the scene
 
 # ------------------------------------------------------------------------------
+scale_z = 25.0
+
 phenomenon_name = "deer"
 phenomenon = dataset.phenomena[phenomenon_name]
 phenomenon_collection = bpy.data.collections.new(phenomenon_name)
@@ -363,13 +357,13 @@ property_set = phenomenon.property_sets[property_set_name]
 property_set_collection = bpy.data.collections.new(property_set_name)
 phenomenon_collection.children.link(property_set_collection)
 
-# min_x_new, min_y_new, \
-# max_x_new, max_y_new, \
-# min_z_new, max_z_new = \
-#     add_tracks(property_set_collection, property_set)
-# min_x, max_x, min_y, max_y, min_z, max_z = update_extent(
-#     min_x, max_x, min_y, max_y, min_z, max_z,
-#     min_x_new, max_x_new, min_y_new, max_y_new, min_z_new, max_z_new)
+min_x_new, min_y_new, \
+max_x_new, max_y_new, \
+min_z_new, max_z_new = \
+    add_tracks(property_set_collection, property_set, scale_z)
+min_x, max_x, min_y, max_y, min_z, max_z = update_extent(
+    min_x, max_x, min_y, max_y, min_z, max_z,
+    min_x_new, max_x_new, min_y_new, max_y_new, min_z_new, max_z_new)
 
 # ------------------------------------------------------------------------------
 phenomenon_name = "area"
@@ -389,7 +383,7 @@ property_set_collection.children.link(property_collection)
 min_x_new, min_y_new, \
 max_x_new, max_y_new, \
 min_z_new, max_z_new = \
-    add_field(property_collection, property_set, property_name)
+    add_field(property_collection, property_set, property_name, scale_z)
 min_x, max_x, min_y, max_y, min_z, max_z = update_extent(
     min_x, max_x, min_y, max_y, min_z, max_z,
     min_x_new, max_x_new, min_y_new, max_y_new, min_z_new, max_z_new)
@@ -507,6 +501,30 @@ min_x, max_x, min_y, max_y, min_z, max_z = update_extent(
 
 # Global stuff -----------------------------------------------------------------
 
+collection = bpy.context.collection
+
+# print(dir(collection))
+# print(dir(collection.objects))
+# print(dir(collection.all_objects))
+# assert False
+
+### # Scale z (time in this case) to make its extent similar to the extents
+### # in x and y.
+### print(dir(collection))
+### print(dir(collection.objects))
+
+# print(dir(collection))
+# print(collection.objects)
+# print(dir(collection.all_objects))
+
+
+### # TODO Calculate scale in z
+### for object in dataset_collection.all_objects:
+###     print(object.type)
+###     if object.type in ["CURVE", "MESH"]:
+###         object.scale[2] = 25
+
+
 scene_extent = [
     max_x - min_x,
     max_y - min_y,
@@ -524,7 +542,6 @@ print("scene_origin: {}".format(scene_origin))
 print("max_extent: {}".format(max_extent))
 
 
-collection = bpy.context.collection
 
 
 # Add a light
@@ -555,6 +572,7 @@ camera_location = mathutils.Vector([
     min_y - 1.3 * scene_extent[1],
     min_z + 3 * scene_extent[2]])
 camera_object.location = camera_location
+camera_object.data.lens = 100.0
 # camera_object.rotation_euler = mathutils.Euler((0.9, 0.0, 1.1))
 
 # Update layer, otherwise the camera's world matrix is not set yet
@@ -583,7 +601,11 @@ empty_object.location = mathutils.Vector(empty_location)
 # empty_object.hide_set(True)
 
 
-add_bounding_box(collection, min_x, max_x, min_y, max_y, min_z, max_z)
+bounding_box_object = add_bounding_box(
+    collection, min_x, max_x, min_y, max_y, min_z, max_z)
+bounding_box_object.hide_set(True)
+bounding_box_object.hide_render = True
+
 configure_interface(clip_end=3*max_extent)
 
 # /Global stuff ----------------------------------------------------------------
@@ -591,6 +613,12 @@ configure_interface(clip_end=3*max_extent)
 
 
 # print_state()
+
+# TODO Fix rendering of objects shadowed by upper objects (sun light, cycles)
+# Given sun light:
+# - For each grid object:
+#     - Object | Cycles settings | ray visibility | shadow -> off
+# Other option: attach a light to the camera? Is that possible?
 
 render_still(bpy.context.scene, "PNG", "deer.png", "BLENDER_WORKBENCH")
 save_as("deer.blend")
