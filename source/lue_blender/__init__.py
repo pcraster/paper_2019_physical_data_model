@@ -55,7 +55,8 @@ def add_polyline(
         materials):
 
     # Create the curve data-block
-    curve_data = bpy.data.curves.new("curve_data-{}".format(id), type="CURVE")
+    curve_data = bpy.data.curves.new(
+        "curve_data-{:02}".format(id), type="CURVE")
     curve_data.dimensions = "3D"
     curve_data.fill_mode = "FULL"
     curve_data.resolution_u = 4
@@ -74,9 +75,10 @@ def add_polyline(
 
     # Create object
     curve_object = bpy.data.objects.new(
-        "curve_object-{}".format(id), curve_data)
+        "curve_object-{:02}".format(id), curve_data)
 
-    curve_object.data.materials.append(materials[id % type(id)(len(materials))])
+    curve_object.data.materials.append(
+        materials[id % type(id)(len(materials))])
 
     # Attach to scene and validate context
     collection.objects.link(curve_object)
@@ -105,6 +107,104 @@ def configure_interface(
 
                             # Lock camera to view
                             space.lock_camera = True
+
+
+
+
+### w = 1
+### 
+### def MakeFilledPolyLine(collection, objname, curvename, cLists):
+###     curvedata = bpy.data.curves.new(name=curvename, type='CURVE')
+###     curvedata.dimensions = '2D'  
+### 
+###     odata = bpy.data.objects.new(objname, curvedata)
+###     odata.location = (0,0,0) # object origin
+### 
+###     collection.objects.link(odata)
+###     # bpy.context.scene.objects.link(odata)
+### 
+###     for cList in cLists:
+###         polyline = curvedata.splines.new('POLY')
+###         polyline.points.add(len(cList)-1)
+###         for num in range(len(cList)):
+###             # --------------------- = x            , y            , z, w
+###             polyline.points[num].co = cList[num][0], cList[num][1], cList[num][2], w
+### 
+###         polyline.order_u = len(polyline.points)-1
+###         polyline.use_endpoint_u = True
+###         polyline.use_cyclic_u = True  # this closes each loop
+### 
+###     return odata
+
+
+### vectors = [
+###     [[0,0], [10,0], [10,10], [0,10]], 
+###     [[1,1], [1,2], [2,2], [2,1]]
+### ]
+### MakeFilledPolyLine("NameOfMyCurveObject", "NameOfMyCurve", vectors)
+
+
+def add_plane(
+        collection,
+        min_x,
+        max_x,
+        min_y,
+        max_y,
+        z):
+
+
+    # TODO Generalize add_polyline to make it usable from here
+    # - Define material
+    # - Pass some id / name
+    # - ...
+
+    return
+
+    ### vectors = [
+    ###     [
+    ###         [min_x, min_y, z],
+    ###         [min_x, max_y, z],
+    ###         [max_x, max_y, z],
+    ###         [max_x, min_y, z],
+    ###     ]
+    ### ]
+
+    ### obj = MakeFilledPolyLine(collection, "my_curve_object", "my_curve", vectors)
+    ### return obj
+
+    ### plane_data = bpy.data.meshes.new("plane_data")
+    ### plane_object = bpy.data.objects.new("plane_object", plane_data)
+
+    ### material = bpy.data.materials.new("plane")
+    ### material.diffuse_color = (0.0, 0.0, 0.0, 0.4)
+    ### material.metallic = 0.0
+    ### material.roughness = 0.5
+    ### plane_object.data.materials.append(material)
+
+    ### collection.objects.link(plane_object)
+
+    ### plane_bmesh = bmesh.new()
+
+    ### bmesh.ops.create_cube(plane_bmesh, size=1.0)
+    ### # meh = bpy.ops.mesh.primitive_plane_add(size=1.0)
+
+    ### extents = [
+    ###     max_x - min_x,
+    ###     max_y - min_y,
+    ###     0]
+    ### plane_object.scale = (
+    ###     extents[0] / 2,
+    ###     extents[1] / 2,
+    ###     1.0)
+    ### plane_object.location = (
+    ###     min_x + extents[0] / 2,
+    ###     min_y + extents[1] / 2,
+    ###     z)
+
+    ### plane_bmesh.to_mesh(plane_data)
+    ### plane_bmesh.free()
+
+    ### return plane_object
 
 
 def add_bounding_box(

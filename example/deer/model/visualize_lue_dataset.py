@@ -14,6 +14,13 @@ import random
 import sys
 
 
+draw_tracks = True
+draw_fields = True
+draw_extents = False
+
+
+
+
 # 6. Colour each line differently
 # 7. Set tube material of all lines
 
@@ -271,9 +278,9 @@ def add_field(
                 array = property.value[object_id][c]
 
                 grid_data = bpy.data.meshes.new(
-                    "grid_data-{}-{}".format(property_name, c))
+                    "grid_data-{}-{:02}".format(property_name, c))
                 grid_object = bpy.data.objects.new(
-                    "grid_object-{}-{}".format(property_name, c), grid_data)
+                    "grid_object-{}-{:02}".format(property_name, c), grid_data)
 
                 collection.objects.link(grid_object)
 
@@ -307,6 +314,8 @@ def add_field(
                     min_y + extents[1] / 2,
                     z)
 
+                grid_object.cycles_visibility.shadow = False
+
                 # Convert bmesh to Blender representation
                 grid_mesh.to_mesh(grid_data)
                 grid_mesh.free()
@@ -319,6 +328,110 @@ def add_field(
                     # Initially, hide most layers
                     grid_object.hide_set(True)
                     grid_object.hide_render = True
+
+    return min_x, min_y, max_x, max_y, min_z, max_z
+
+
+def add_extent(
+        collection,
+        property_set,
+        scale_z):
+
+    assert_time_domain_as_expected(property_set)
+    time_domain = property_set.time_domain
+
+    assert property_set.has_space_domain
+    space_domain = property_set.space_domain
+    assert space_domain.configuration.mobility == lue.Mobility.stationary
+    assert space_domain.configuration.item_type == lue.SpaceDomainItemType.box
+
+    assert space_domain.value.nr_boxes == 1
+    assert len(space_domain.value.array_shape) == 1  # A 1D array ...
+    # ... of four values: x1, y1, x2, y2
+    assert space_domain.value.array_shape[0] == 4  # Implies rank == 2
+
+    min_x, min_y, max_x, max_y = space_domain.value[0]
+    min_z, max_z = 2 * (None,)
+
+    # Given the location of the raster, generate a collection of boxes:
+    # for each extent a single rectangle with an outline colour
+
+    # Here we assume/know that there is only one object. For that object,
+    # we need to output rasters for each location in time.
+    object_tracker = property_set.object_tracker
+    active_set_idxs = np.append(
+        object_tracker.active_set_index[:],
+        np.array(
+            [object_tracker.active_object_id.nr_ids], dtype=lue.dtype.Index))
+    set_idx = 0
+
+    min_z = 0
+    max_z = 100
+
+    assert len(set(object_tracker.active_object_id[:])) == 1
+    object_id = object_tracker.active_object_id[0]
+
+    for b in range(time_domain.value.nr_boxes):
+        for t in range(time_domain.value.nr_counts):
+            nr_time_cells = time_domain.value.count[b]
+
+            for c in range(0, nr_time_cells):
+
+                ### extent_data = bpy.data.meshes.new(
+                ###     "extent_data-{:02}".format(c))
+                ### extent_object = bpy.data.objects.new(
+                ###     "extent_object-{:02}".format(c), extent_data)
+
+                ### collection.objects.link(extent_object)
+
+                ### # Create empty bmesh
+                ### grid_mesh = bmesh.new()
+
+                ### # Create point grid. To end up with nr_rows x nr_cols cells,
+                ### # add one to each dimension.
+                ### bmesh.ops.create_grid(
+                ###     grid_mesh, x_segments=2, y_segments=2, size=1.0)
+
+                # assign_colors_to_grid_cells(
+                #     extent_data,
+                #     sns.cubehelix_palette(8, rot=-0.4),
+                #     # sns.color_palette(),
+                #     grid_mesh, array, min_value, max_value)
+
+                z = (c + 0.5) * scale_z  # Connect centers of time cells
+
+                extent_object = add_plane(
+                    collection, min_x, max_x, min_y, max_y, z)
+                # extent_object.hide_set(True)
+                # extent_object.hide_render = True
+                # extent_object.cycles_visibility.shadow = False
+
+                ### extents = [
+                ###     max_x - min_x,
+                ###     max_y - min_y,
+                ###     0]
+                ### extent_object.scale = (
+                ###     extents[0] / 2,
+                ###     extents[1] / 2,
+                ###     1.0)
+                ### extent_object.location = (
+                ###     min_x + extents[0] / 2,
+                ###     min_y + extents[1] / 2,
+                ###     z)
+
+                ### # extent_object.cycles_visibility.shadow = False
+
+                ### # Convert bmesh to Blender representation
+                ### grid_mesh.to_mesh(extent_data)
+                ### grid_mesh.free()
+
+                min_z = c if min_z is None else min(z, min_z)
+                max_z = c if max_z is None else max(z, max_z)
+
+                ### if c % 10 != 0:
+                ###     # Initially, hide most layers
+                ###     extent_object.hide_set(True)
+                ###     extent_object.hide_render = True
 
     return min_x, min_y, max_x, max_y, min_z, max_z
 
@@ -336,7 +449,6 @@ dataset = lue.open_dataset(dataset_pathname)
 dataset_collection = bpy.data.collections.new(dataset_name)
 scene.collection.children.link(dataset_collection)
 
-
 # Stuff specific for a phenomenon ----------------------------------------------
 # Possibly specific for property-set? Or even domain / property?
 min_x, min_y, max_x, max_y, min_z, max_z = 6 * (None,)
@@ -345,7 +457,7 @@ min_x, min_y, max_x, max_y, min_z, max_z = 6 * (None,)
 # the scene
 
 # ------------------------------------------------------------------------------
-scale_z = 25.0
+scale_z = 50.0
 
 phenomenon_name = "deer"
 phenomenon = dataset.phenomena[phenomenon_name]
@@ -357,13 +469,14 @@ property_set = phenomenon.property_sets[property_set_name]
 property_set_collection = bpy.data.collections.new(property_set_name)
 phenomenon_collection.children.link(property_set_collection)
 
-min_x_new, min_y_new, \
-max_x_new, max_y_new, \
-min_z_new, max_z_new = \
-    add_tracks(property_set_collection, property_set, scale_z)
-min_x, max_x, min_y, max_y, min_z, max_z = update_extent(
-    min_x, max_x, min_y, max_y, min_z, max_z,
-    min_x_new, max_x_new, min_y_new, max_y_new, min_z_new, max_z_new)
+if draw_tracks:
+    min_x_new, min_y_new, \
+    max_x_new, max_y_new, \
+    min_z_new, max_z_new = \
+        add_tracks(property_set_collection, property_set, scale_z)
+    min_x, max_x, min_y, max_y, min_z, max_z = update_extent(
+        min_x, max_x, min_y, max_y, min_z, max_z,
+        min_x_new, max_x_new, min_y_new, max_y_new, min_z_new, max_z_new)
 
 # ------------------------------------------------------------------------------
 phenomenon_name = "area"
@@ -376,17 +489,30 @@ property_set = phenomenon.property_sets[property_set_name]
 property_set_collection = bpy.data.collections.new(property_set_name)
 phenomenon_collection.children.link(property_set_collection)
 
+domain_collection = bpy.data.collections.new("domain")
+property_set_collection.children.link(domain_collection)
+
 property_name = "biomass"
 property_collection = bpy.data.collections.new(property_name)
 property_set_collection.children.link(property_collection)
 
-min_x_new, min_y_new, \
-max_x_new, max_y_new, \
-min_z_new, max_z_new = \
-    add_field(property_collection, property_set, property_name, scale_z)
-min_x, max_x, min_y, max_y, min_z, max_z = update_extent(
-    min_x, max_x, min_y, max_y, min_z, max_z,
-    min_x_new, max_x_new, min_y_new, max_y_new, min_z_new, max_z_new)
+if draw_fields:
+    min_x_new, min_y_new, \
+    max_x_new, max_y_new, \
+    min_z_new, max_z_new = \
+        add_field(property_collection, property_set, property_name, scale_z)
+    min_x, max_x, min_y, max_y, min_z, max_z = update_extent(
+        min_x, max_x, min_y, max_y, min_z, max_z,
+        min_x_new, max_x_new, min_y_new, max_y_new, min_z_new, max_z_new)
+
+if draw_extents:
+    min_x_new, min_y_new, \
+    max_x_new, max_y_new, \
+    min_z_new, max_z_new = \
+        add_extent(domain_collection, property_set, scale_z)
+    min_x, max_x, min_y, max_y, min_z, max_z = update_extent(
+        min_x, max_x, min_y, max_y, min_z, max_z,
+        min_x_new, max_x_new, min_y_new, max_y_new, min_z_new, max_z_new)
 
 
 ### # Add a cube
@@ -605,6 +731,7 @@ bounding_box_object = add_bounding_box(
     collection, min_x, max_x, min_y, max_y, min_z, max_z)
 bounding_box_object.hide_set(True)
 bounding_box_object.hide_render = True
+bounding_box_object.cycles_visibility.shadow = False
 
 configure_interface(clip_end=3*max_extent)
 
