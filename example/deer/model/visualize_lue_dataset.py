@@ -14,9 +14,146 @@ import random
 import sys
 
 
+
+
 draw_tracks = True
 draw_fields = True
-draw_extents = False
+
+
+# TODO Animation
+### import bpy
+### import colorsys
+### from math import sqrt, pi, sin, ceil
+### from random import TWOPI
+### 
+### # Number of cubes.
+### count = 16
+### 
+### # Size of grid.
+### extents = 8.0
+### 
+### # Spacing between cubes.
+### padding = 0.002
+### 
+### # Size of each cube.
+### # The height of each cube will be animated, so we'll specify the minimum and maximum scale.
+### sz = (extents / count) - padding
+### minsz = sz * 0.25
+### maxsz = sz * extents
+### diffsz = maxsz - minsz
+### 
+### # To convert abstract grid position within loop to real-world coordinate.
+### jprc = 0.0
+### kprc = 0.0
+### countf = 1.0 / (count - 1)
+### diffex = extents * 2
+### 
+### # Position of each cube.
+### y = 0.0
+### x = 0.0
+### 
+### # Center of grid.
+### centerz = 0.0
+### centery = 0.0
+### centerx = 0.0
+### 
+### # Distances of cube from center.
+### # The maximum possible distance is used to normalize the distance.
+### rise = 0.0
+### run = 0.0
+### normdist = 0.0
+### maxdist = sqrt(2 * extents * extents)
+### 
+### # For animation, track current frame, specify desired number of key frames.
+### currframe = 0
+### fcount = 10
+### invfcount = 1.0 / (fcount - 1)
+### 
+### # If the default frame range is 0, then default to 1 .. 150.
+### frange = bpy.context.scene.frame_end - bpy.context.scene.frame_start
+### if frange == 0:
+###     bpy.context.scene.frame_end = 150
+###     bpy.context.scene.frame_start = 0
+###     frange = 150
+### 
+### # Number of keyframes per frame.
+### fincr = ceil(frange * invfcount)
+### 
+### # For generating the wave.
+### offset = 0.0
+### angle = 0.0
+### 
+### # Loop through grid y axis.
+### for j in range(0, count, 1):
+###     jprc = j * countf
+###     y = -extents + jprc * diffex
+### 
+###     # Calculate rise.
+###     rise = y - centery
+###     rise *= rise
+### 
+###     # Loop through grid x axis.
+###     for k in range(0, count, 1):
+###         kprc = k * countf
+###         x = -extents + kprc * diffex
+### 
+###         # Calculate run.
+###         run = x - centerx
+###         run *= run
+### 
+###         # Find normalized distance using Pythogorean theorem.
+###         # Remap the normalized distance to a range -PI .. PI
+###         normdist = sqrt(rise + run) / maxdist
+###         offset = -TWOPI * normdist + pi
+### 
+###         # Add grid world position to cube local position.
+###         bpy.ops.mesh.primitive_cube_add(location=(centerx + x, centery + y, centerz), radius=sz)
+### 
+###         # Remember and rename the current object being edited.
+###         current = bpy.context.object
+###         current.name = 'Cube ({0:0>2d}, {1:0>2d})'.format(k, j)
+###         current.data.name = 'Mesh ({0:0>2d}, {1:0>2d})'.format(k, j)
+### 
+###         # Create a material and add it to the current object.
+###         mat = bpy.data.materials.new(name='Material ({0:0>2d}, {1:0>2d})'.format(k, j))
+###         mat.diffuse_color = colorsys.hsv_to_rgb(normdist, 0.875, 1.0)
+###         current.data.materials.append(mat)
+### 
+###         # Track the current key frame.
+###         currframe = bpy.context.scene.frame_start
+###         for f in range(0, fcount, 1):
+### 
+###             # Convert the keyframe into an angle.
+###             fprc = f * invfcount
+###             angle = TWOPI * fprc
+### 
+###             # Set the scene to the current frame.
+###             bpy.context.scene.frame_set(currframe)
+### 
+###             # Change the scale.
+###             # sin returns a value in the range -1 .. 1. abs changes the range to 0 .. 1. 
+###             # The values are remapped to the desired scale with min + percent * (max - min).
+###             current.scale[2] = minsz + abs(sin(offset + angle)) * diffsz
+### 
+###             # Insert the key frame for the scale property.
+###             current.keyframe_insert(data_path='scale', index=2)
+### 
+###             # Advance by the keyframe increment to the next keyframe.
+###             currframe += fincr
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -78,7 +215,7 @@ def add_track(
 
     materials = create_materials(
         colors=sns.color_palette("Set1", 9), alpha=1.0)
-    set_material_metallic(materials, 0.7)
+    # set_material_metallic(materials, 0.7)
     set_material_roughness(materials, 0.5)
 
     for b in range(time_domain.value.nr_boxes):
@@ -116,7 +253,8 @@ def add_track(
 
                 set_idx += 1
 
-            add_polyline(collection, object_id, locations, materials)
+            name = "track-{:03}".format(object_id)
+            add_polyline(collection, name, object_id, locations, materials)
 
     return min_x, min_y, max_x, max_y, min_z, max_z
 
@@ -184,7 +322,7 @@ def add_tracks(
     # These are the IDs of object for which information is stored. For
     # each of them, add a track to the collection.
     object_ids = set(property_set.object_tracker.active_object_id[:])
-    print(object_ids)
+    ### print(object_ids)
 
     min_x, min_y, max_x, max_y, min_z, max_z = 6 * (None,)
 
@@ -267,20 +405,23 @@ def add_field(
     max_value = np.max(all_arrays)
     del all_arrays
 
+    materials = create_materials(
+        colors=sns.cubehelix_palette(8, rot=-0.4), alpha=1.0)
+
     for b in range(time_domain.value.nr_boxes):
         for t in range(time_domain.value.nr_counts):
             nr_time_cells = time_domain.value.count[b]
 
             for c in range(0, nr_time_cells):
 
+
                 # A 2D array for the current location in time can be
                 # found in the property value
                 array = property.value[object_id][c]
 
-                grid_data = bpy.data.meshes.new(
-                    "grid_data-{}-{:02}".format(property_name, c))
-                grid_object = bpy.data.objects.new(
-                    "grid_object-{}-{:02}".format(property_name, c), grid_data)
+                name = "grid-{:03}-{:03}".format(object_id, c)
+                grid_data = bpy.data.meshes.new("{}-data".format(name))
+                grid_object = bpy.data.objects.new(name, grid_data)
 
                 collection.objects.link(grid_object)
 
@@ -295,8 +436,7 @@ def add_field(
 
                 assign_colors_to_grid_cells(
                     grid_data,
-                    sns.cubehelix_palette(8, rot=-0.4),
-                    # sns.color_palette(),
+                    materials,
                     grid_mesh, array, min_value, max_value)
 
                 z = (c + 0.5) * scale_z  # Connect centers of time cells
@@ -320,6 +460,56 @@ def add_field(
                 grid_mesh.to_mesh(grid_data)
                 grid_mesh.free()
 
+                name = "outline-{:03}-{:03}".format(object_id, c)
+                extent_object = add_2d_outline(
+                    collection, name,
+                    min_x, max_x, min_y, max_y, z, materials[-1])
+                extent_object.cycles_visibility.shadow = False
+
+
+                # TODO Join grid and extent to be able to manipulate
+                #     them together (turn on/off, render, etc)
+
+                ### ### bpy.ops.object.mode_set(mode="OBJECT")
+                ### bpy.ops.object.select_all(action="DESELECT")
+                ### # bpy.context.view_layer.objects.active = grid_object
+                # bpy.context.view_layer.objects.active = grid_object
+                ### bpy.context.view_layer.objects.active = extent_object
+                ### extent_object.select_set(True)
+                ### grid_object.select_set(True)
+                ### bpy.ops.object.join()
+
+                ### parent_object = bpy.data.objects.new("meh", None)
+                ### collection.objects.link(parent_object)
+                ### grid_object.parent = parent_object
+                ### extent_object.parent = parent_object
+
+
+                ### print(bpy.context.mode)
+                ### bpy.ops.object.mode_set(mode="OBJECT")
+                ### print(bpy.context.mode)
+
+
+
+
+                ### override = bpy.context.copy()
+                ### override = {}
+                ### print(override)
+                ### objects = [grid_object, extent_object]
+                ### print(grid_object)
+                ### print(objects)
+                ### # override["object"] =
+                ### override["active_object"] = objects[0]
+                ### override["active"] = objects[0]
+                ### override["collection"] = collection
+                ### override["selected_objects"] = objects
+
+                ### # assert bpy.ops.object.join.poll(), override  # bpy.context  # .mode
+                ### print(override)
+                ### bpy.ops.object.join(override)
+
+                ### ### bpy.ops.object.mode_set(mode="OBJECT")
+
 
                 min_z = c if min_z is None else min(z, min_z)
                 max_z = c if max_z is None else max(z, max_z)
@@ -328,110 +518,8 @@ def add_field(
                     # Initially, hide most layers
                     grid_object.hide_set(True)
                     grid_object.hide_render = True
-
-    return min_x, min_y, max_x, max_y, min_z, max_z
-
-
-def add_extent(
-        collection,
-        property_set,
-        scale_z):
-
-    assert_time_domain_as_expected(property_set)
-    time_domain = property_set.time_domain
-
-    assert property_set.has_space_domain
-    space_domain = property_set.space_domain
-    assert space_domain.configuration.mobility == lue.Mobility.stationary
-    assert space_domain.configuration.item_type == lue.SpaceDomainItemType.box
-
-    assert space_domain.value.nr_boxes == 1
-    assert len(space_domain.value.array_shape) == 1  # A 1D array ...
-    # ... of four values: x1, y1, x2, y2
-    assert space_domain.value.array_shape[0] == 4  # Implies rank == 2
-
-    min_x, min_y, max_x, max_y = space_domain.value[0]
-    min_z, max_z = 2 * (None,)
-
-    # Given the location of the raster, generate a collection of boxes:
-    # for each extent a single rectangle with an outline colour
-
-    # Here we assume/know that there is only one object. For that object,
-    # we need to output rasters for each location in time.
-    object_tracker = property_set.object_tracker
-    active_set_idxs = np.append(
-        object_tracker.active_set_index[:],
-        np.array(
-            [object_tracker.active_object_id.nr_ids], dtype=lue.dtype.Index))
-    set_idx = 0
-
-    min_z = 0
-    max_z = 100
-
-    assert len(set(object_tracker.active_object_id[:])) == 1
-    object_id = object_tracker.active_object_id[0]
-
-    for b in range(time_domain.value.nr_boxes):
-        for t in range(time_domain.value.nr_counts):
-            nr_time_cells = time_domain.value.count[b]
-
-            for c in range(0, nr_time_cells):
-
-                ### extent_data = bpy.data.meshes.new(
-                ###     "extent_data-{:02}".format(c))
-                ### extent_object = bpy.data.objects.new(
-                ###     "extent_object-{:02}".format(c), extent_data)
-
-                ### collection.objects.link(extent_object)
-
-                ### # Create empty bmesh
-                ### grid_mesh = bmesh.new()
-
-                ### # Create point grid. To end up with nr_rows x nr_cols cells,
-                ### # add one to each dimension.
-                ### bmesh.ops.create_grid(
-                ###     grid_mesh, x_segments=2, y_segments=2, size=1.0)
-
-                # assign_colors_to_grid_cells(
-                #     extent_data,
-                #     sns.cubehelix_palette(8, rot=-0.4),
-                #     # sns.color_palette(),
-                #     grid_mesh, array, min_value, max_value)
-
-                z = (c + 0.5) * scale_z  # Connect centers of time cells
-
-                extent_object = add_plane(
-                    collection, min_x, max_x, min_y, max_y, z)
-                # extent_object.hide_set(True)
-                # extent_object.hide_render = True
-                # extent_object.cycles_visibility.shadow = False
-
-                ### extents = [
-                ###     max_x - min_x,
-                ###     max_y - min_y,
-                ###     0]
-                ### extent_object.scale = (
-                ###     extents[0] / 2,
-                ###     extents[1] / 2,
-                ###     1.0)
-                ### extent_object.location = (
-                ###     min_x + extents[0] / 2,
-                ###     min_y + extents[1] / 2,
-                ###     z)
-
-                ### # extent_object.cycles_visibility.shadow = False
-
-                ### # Convert bmesh to Blender representation
-                ### grid_mesh.to_mesh(extent_data)
-                ### grid_mesh.free()
-
-                min_z = c if min_z is None else min(z, min_z)
-                max_z = c if max_z is None else max(z, max_z)
-
-                ### if c % 10 != 0:
-                ###     # Initially, hide most layers
-                ###     extent_object.hide_set(True)
-                ###     extent_object.hide_render = True
+                    extent_object.hide_set(True)
+                    extent_object.hide_render = True
 
     return min_x, min_y, max_x, max_y, min_z, max_z
 
@@ -489,8 +577,8 @@ property_set = phenomenon.property_sets[property_set_name]
 property_set_collection = bpy.data.collections.new(property_set_name)
 phenomenon_collection.children.link(property_set_collection)
 
-domain_collection = bpy.data.collections.new("domain")
-property_set_collection.children.link(domain_collection)
+# domain_collection = bpy.data.collections.new("domain")
+# property_set_collection.children.link(domain_collection)
 
 property_name = "biomass"
 property_collection = bpy.data.collections.new(property_name)
@@ -501,15 +589,6 @@ if draw_fields:
     max_x_new, max_y_new, \
     min_z_new, max_z_new = \
         add_field(property_collection, property_set, property_name, scale_z)
-    min_x, max_x, min_y, max_y, min_z, max_z = update_extent(
-        min_x, max_x, min_y, max_y, min_z, max_z,
-        min_x_new, max_x_new, min_y_new, max_y_new, min_z_new, max_z_new)
-
-if draw_extents:
-    min_x_new, min_y_new, \
-    max_x_new, max_y_new, \
-    min_z_new, max_z_new = \
-        add_extent(domain_collection, property_set, scale_z)
     min_x, max_x, min_y, max_y, min_z, max_z = update_extent(
         min_x, max_x, min_y, max_y, min_z, max_z,
         min_x_new, max_x_new, min_y_new, max_y_new, min_z_new, max_z_new)
@@ -661,18 +740,19 @@ scene_origin = [
     min_z + (scene_extent[2] / 2)]
 max_extent = max(scene_extent)
 
-print("scene_extent: {}".format(scene_extent))
-print("data extent:\n  x: {} - {}\n  y: {} - {}\n  z: {} - {}".format(
-    min_x, max_x, min_y, max_y, min_z, max_z))
-print("scene_origin: {}".format(scene_origin))
-print("max_extent: {}".format(max_extent))
+### print("scene_extent: {}".format(scene_extent))
+### print("data extent:\n  x: {} - {}\n  y: {} - {}\n  z: {} - {}".format(
+###     min_x, max_x, min_y, max_y, min_z, max_z))
+### print("scene_origin: {}".format(scene_origin))
+### print("max_extent: {}".format(max_extent))
 
 
 
 
 # Add a light
-light_data = bpy.data.lights.new("light_data", type="SUN")
-light = bpy.data.objects.new("light_object", light_data)
+# TODO Maybe set the intensity of the sun lower (10 -> 1)
+light_data = bpy.data.lights.new("light-data", type="SUN")
+light = bpy.data.objects.new("light", light_data)
 collection.objects.link(light)
 
 # Orient light at scene
@@ -684,8 +764,8 @@ light.location = light_location
 
 
 # Add a camera
-camera_data = bpy.data.cameras.new("camera_data")
-camera_object = bpy.data.objects.new("camera_object", camera_data)
+camera_data = bpy.data.cameras.new("camera-data")
+camera_object = bpy.data.objects.new("camera", camera_data)
 # TODO Make this dependent on the extent of the data and the distance
 #     of the camera from the scene
 camera_object.data.clip_end = 3 * max_extent
@@ -713,7 +793,7 @@ scene.camera = camera_object
 # selected' on it. That way, when the interface starts, we can hover around
 # the objects in the scene instead of the origin.
 empty_data = None
-empty_object = bpy.data.objects.new("empty_object", empty_data)
+empty_object = bpy.data.objects.new("empty", empty_data)
 collection.objects.link(empty_object)
 
 empty_object.empty_display_size = 2

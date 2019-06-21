@@ -50,15 +50,14 @@ def look_at(
 
 def add_polyline(
         collection,
+        name,
         id,
         coordinates,
         materials):
 
     # Create the curve data-block
-    curve_data = bpy.data.curves.new(
-        "curve_data-{:02}".format(id), type="CURVE")
+    curve_data = bpy.data.curves.new("{}-data".format(name), type="CURVE")
     curve_data.dimensions = "3D"
-    curve_data.fill_mode = "FULL"
     curve_data.resolution_u = 4
     # curve_data.bevel_depth = 0.05
     # TODO pass this in. Depends on data extent things.
@@ -74,11 +73,12 @@ def add_polyline(
         polyline.points[i].co = (x, y, z, 1.0)
 
     # Create object
-    curve_object = bpy.data.objects.new(
-        "curve_object-{:02}".format(id), curve_data)
+    curve_object = bpy.data.objects.new(name, curve_data)
 
     curve_object.data.materials.append(
         materials[id % type(id)(len(materials))])
+
+    curve_object.cycles_visibility.shadow = False
 
     # Attach to scene and validate context
     collection.objects.link(curve_object)
@@ -108,7 +108,8 @@ def configure_interface(
                             # Lock camera to view
                             space.lock_camera = True
 
-
+    # Mmm, space_data is None...
+    # bpy.context.space_data.show_restrict_column_render = True
 
 
 ### w = 1
@@ -144,67 +145,46 @@ def configure_interface(
 ### MakeFilledPolyLine("NameOfMyCurveObject", "NameOfMyCurve", vectors)
 
 
-def add_plane(
+def add_2d_outline(
         collection,
+        name,
         min_x,
         max_x,
         min_y,
         max_y,
-        z):
+        z,
+        material):
 
+    # Create the curve data-block
+    curve_data = bpy.data.curves.new("{}-data".format(name), type="CURVE")
+    curve_data.dimensions = "2D"
+    # TODO pass this in. Depends on data extent things.
+    curve_data.bevel_depth = 2
 
-    # TODO Generalize add_polyline to make it usable from here
-    # - Define material
-    # - Pass some id / name
-    # - ...
+    # Map coordinates to spline
+    coordinates = [
+        [min_x, min_y],
+        [min_x, max_y],
+        [max_x, max_y],
+        [max_x, min_y],
+        [min_x, min_y],
+    ]
+    polyline = curve_data.splines.new("POLY")
+    polyline.points.add(len(coordinates) - 1)
 
-    return
+    for i in range(len(coordinates)):
+        x, y = coordinates[i]
+        polyline.points[i].co = (x, y, z, 1.0)
 
-    ### vectors = [
-    ###     [
-    ###         [min_x, min_y, z],
-    ###         [min_x, max_y, z],
-    ###         [max_x, max_y, z],
-    ###         [max_x, min_y, z],
-    ###     ]
-    ### ]
+    # Create object
+    curve_object = bpy.data.objects.new(name, curve_data)
 
-    ### obj = MakeFilledPolyLine(collection, "my_curve_object", "my_curve", vectors)
-    ### return obj
+    curve_object.data.materials.append(material)
 
-    ### plane_data = bpy.data.meshes.new("plane_data")
-    ### plane_object = bpy.data.objects.new("plane_object", plane_data)
+    # Attach to scene and validate context
+    collection.objects.link(curve_object)
 
-    ### material = bpy.data.materials.new("plane")
-    ### material.diffuse_color = (0.0, 0.0, 0.0, 0.4)
-    ### material.metallic = 0.0
-    ### material.roughness = 0.5
-    ### plane_object.data.materials.append(material)
-
-    ### collection.objects.link(plane_object)
-
-    ### plane_bmesh = bmesh.new()
-
-    ### bmesh.ops.create_cube(plane_bmesh, size=1.0)
-    ### # meh = bpy.ops.mesh.primitive_plane_add(size=1.0)
-
-    ### extents = [
-    ###     max_x - min_x,
-    ###     max_y - min_y,
-    ###     0]
-    ### plane_object.scale = (
-    ###     extents[0] / 2,
-    ###     extents[1] / 2,
-    ###     1.0)
-    ### plane_object.location = (
-    ###     min_x + extents[0] / 2,
-    ###     min_y + extents[1] / 2,
-    ###     z)
-
-    ### plane_bmesh.to_mesh(plane_data)
-    ### plane_bmesh.free()
-
-    ### return plane_object
+    return curve_object
 
 
 def add_bounding_box(
@@ -216,11 +196,11 @@ def add_bounding_box(
         min_z,
         max_z):
 
-    bounding_box_data = bpy.data.meshes.new("bounding_box_data")
+    bounding_box_data = bpy.data.meshes.new("bounding_box-data")
     bounding_box_object = bpy.data.objects.new(
-        "bounding_box_object", bounding_box_data)
+        "bounding_box", bounding_box_data)
 
-    material = bpy.data.materials.new("bounding_box")
+    material = bpy.data.materials.new("bounding_box-material")
     material.diffuse_color = (0.0, 0.0, 0.0, 0.4)
     material.metallic = 0.0
     material.roughness = 0.5
@@ -311,18 +291,16 @@ def classify(
 
 def assign_colors_to_grid_cells(
         grid_data,
-        palette,
+        materials,
         grid_mesh,
         array,
         min_value,
         max_value):
 
     assert array.size > 0
-    assert len(palette) > 0
+    assert len(materials) > 0
 
-    nr_materials = len(palette)
-
-    materials = create_materials(palette, alpha=1.0)
+    nr_materials = len(materials)
 
     for material in materials:
         grid_data.materials.append(material)
