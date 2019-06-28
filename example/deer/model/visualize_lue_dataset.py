@@ -750,8 +750,8 @@ max_extent = max(scene_extent)
 
 
 # Add a light
-# TODO Maybe set the intensity of the sun lower (10 -> 1)
 light_data = bpy.data.lights.new("light-data", type="SUN")
+light_data.energy = 2
 light = bpy.data.objects.new("light", light_data)
 collection.objects.link(light)
 
