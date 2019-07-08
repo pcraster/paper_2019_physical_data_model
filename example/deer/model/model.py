@@ -645,6 +645,9 @@ if __name__ == "__main__":
     parsed_nr_timesteps = int(parsed_arguments["--nr_timesteps"])
     parsed_nr_deer = int(parsed_arguments["--nr_deer"])
 
+    random.seed(5)
+    np.random.seed(6)
+
     run_model(
         parsed_dataset_pathname, parsed_nr_timesteps, parsed_area_shape,
         parsed_nr_deer)

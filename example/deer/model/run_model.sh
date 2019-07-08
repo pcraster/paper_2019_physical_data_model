@@ -16,7 +16,7 @@ dot_graph=$output_prefix/deer.dot
 pdf_graph=$output_prefix/deer.pdf
 
 mkdir -p $output_prefix
-$model_prefix/model.py --nr_timesteps=500 --nr_deer=50 $lue_dataset
+$model_prefix/model.py --nr_timesteps=250 --nr_deer=25 $lue_dataset
 lue_translate export --meta $dot_properties $lue_dataset $dot_graph
 dot -Tpdf -o $pdf_graph $dot_graph
 $model_prefix/visualize.py $lue_dataset --output $output_prefix
