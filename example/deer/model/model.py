@@ -1,6 +1,6 @@
 #!/usr/bin/env python
+from operation import *
 import lue
-from scipy.signal import convolve2d
 import numpy as np
 import docopt
 import math
@@ -9,127 +9,7 @@ import random
 import sys
 
 
-def window_total(
-        array,
-        radius):
-
-    window = np.full((2 * radius + 1, 2 * radius + 1), 1.0, array.dtype)
-
-    return convolve2d(array, window, mode="same", fillvalue=0)
-
-
-def classify(
-        value,
-        min_value,
-        max_value,
-        nr_classes):
-
-    assert min_value <= value < max_value
-    assert max_value > min_value
-
-    value_range = max_value - min_value
-    class_range = value_range / nr_classes
-    idx = int(math.floor((value - min_value) / class_range))
-
-    assert idx < nr_classes, "value: {}, min_value: {}, max_value: {}, nr_classes: {}".format(
-        value, min_value, max_value, nr_classes)
-
-    return idx
-
-
-def cell_indices(
-        space_box,
-        shape,
-        cell_size,
-        point):
-
-    assert point[0] >= space_box[0] and \
-        point[0] < space_box[0] + shape[1] * cell_size, \
-        "point({}), space_box({}), shape({}), cell_size({})".format(
-            point, space_box, shape, cell_size)
-    assert point[1] >= space_box[1] and \
-        point[1] < space_box[1] + shape[0] * cell_size, \
-        "point({}), space_box({}), shape({}), cell_size({})".format(
-            point, space_box, shape, cell_size)
-
-    row = classify(point[1], space_box[1], space_box[3], shape[0])
-    col = classify(point[0], space_box[0], space_box[2], shape[1])
-
-    return row, col
-
-
-def cell_total(
-        points,
-        values,
-        space_box,
-        shape):
-    """
-    Sum the number of points located in each cell of the raster defined
-    by the arguments passed in
-    """
-
-    ### extent = [
-    ###     space_box[2] - space_box[0],
-    ###     space_box[3] - space_box[1],
-    ### ]
-
-    ### cell_size = [
-    ###     extent[0] / shape[1],
-    ###     extent[1] / shape[0],
-    ### ]
-
-    result = np.full(shape, 0, np.uint64)
-
-    for point, value in zip(points, values):
-        row, col = cell_indices(space_box, shape, cell_size, point)
-        result[row][col] += value
-
-    return result
-
-
-def clamp(
-        value,
-        min_value,
-        max_value):
-    return max(min(value, max_value), min_value)
-
-
-def gaussian_move(
-        current_locations,
-        boolean,
-        space_box,
-        shape,
-        sigma):
-
-    assert boolean.dtype == np.bool
-
-    new_locations = []
-
-    min_x, min_y, max_x, max_y = space_box
-
-    for x, y in current_locations:
-
-        # Pick a new location and clamp it to the area's extent
-        new_x = clamp(random.normalvariate(x, sigma), min_x, max_x - 1e-3)
-        new_y = clamp(random.normalvariate(y, sigma), min_y, max_y - 1e-3)
-        row, col = cell_indices(
-            space_box, shape, cell_size, [new_x, new_y])
-
-        # This assumes that there are 'good' cells nearby
-        while not boolean[row][col]:
-            new_x = clamp(random.normalvariate(x, sigma), min_x, max_x - 1e-3)
-            new_y = clamp(random.normalvariate(y, sigma), min_y, max_y - 1e-3)
-            row, col = cell_indices(
-                space_box, shape, cell_size, [new_x, new_y])
-
-        assert min_x <= new_x < max_x
-        assert min_y <= new_y < max_y
-        new_locations.append([new_x, new_y])
-
-    return np.array(new_locations, dtype=current_locations.dtype)
-
-
-# TODO Add to data model
+# Global variables. These could be added / read from the dataset instead
 carrying_capacity = 10.0
 growth_rate = 0.02
 d = 0.01
@@ -189,14 +69,14 @@ def initialize_dataset(
         "time_extent",
         lue.TimeConfiguration(lue.TimeDomainItemType.cell), clock)
 
-    # area ---------------------------------------------------------------------
-    # Add phenomenon for representing the collection of areas. (Ιn this
-    # model, there is only one area.)
-    area = dataset.add_phenomenon("area")
+    # park ---------------------------------------------------------------------
+    # Add phenomenon for representing the collection of park areas. (Ιn
+    # this model, there is only one park.)
+    park = dataset.add_phenomenon("park")
 
-    # Add property-set for area-related information that does not vary
+    # Add property-set for park-related information that does not vary
     # through time
-    constant = area.add_property_set("constant")
+    constant = park.add_property_set("constant")
 
     # Add property for storing discretization information of the
     # fields. This information does not change through time.
@@ -204,20 +84,19 @@ def initialize_dataset(
     space_discretization = constant.add_property(
         "space_discretization", dtype=lue.dtype.Count, shape=(rank,))
 
-    # Add property-set for area-related information that varies through
+    # Add property-set for park-related information that varies through
     # time. The time domain of the simulation's time_extent property-set
     # is passed in for re-use.
-    space_extent = area.add_property_set(
+    space_extent = park.add_property_set(
         "space_extent", time_extent.time_domain,
         lue.SpaceConfiguration(
             lue.Mobility.stationary,
             lue.SpaceDomainItemType.box),
         space_coordinate_dtype=space_coordinate_dtype, rank=rank)
 
-    # Add properties for storing the area's biomass. Property
-    # values per object are
-    # rank-D arrays. The fact that they are indeed discretized through
-    # space instead of just n-D values, is made explicit.
+    # Add properties for storing the park's biomass. Property
+    # values per object are rank-D arrays. The fact that they are indeed
+    # discretized through space instead of just n-D values, is made explicit.
 
     biomass = space_extent.add_property(
         "biomass", dtype=np.dtype(np.float32),
@@ -226,22 +105,6 @@ def initialize_dataset(
         shape_variability=lue.ShapeVariability.constant)
     biomass.set_space_discretization(
         lue.SpaceDiscretization.regular_grid, space_discretization)
-
-    ### capacity = space_extent.add_property(
-    ###     "capacity", dtype=np.dtype(np.float32),
-    ###     rank=rank,
-    ###     shape_per_object=lue.ShapePerObject.different,
-    ###     shape_variability=lue.ShapeVariability.constant)
-    ### capacity.set_space_discretization(
-    ###     lue.SpaceDiscretization.regular_grid, space_discretization)
-
-    ### growth = space_extent.add_property(
-    ###     "growth", dtype=np.dtype(np.float32),
-    ###     rank=rank,
-    ###     shape_per_object=lue.ShapePerObject.different,
-    ###     shape_variability=lue.ShapeVariability.constant)
-    ### growth.set_space_discretization(
-    ###     lue.SpaceDiscretization.regular_grid, space_discretization)
 
     # deer ---------------------------------------------------------------------
     # Add phenomenon for representing the collection of simulated deer.
@@ -315,17 +178,17 @@ def initialize_state(
     time_extent.time_domain.value.expand(1)[-1] = np.array(
         [0, 1], dtype=lue.dtype.TickPeriodCount).reshape(1, 2);
 
-    # area ---------------------------------------------------------------------
+    # park ---------------------------------------------------------------------
     # - Add ID
     # - Add extent to space domain
     # - Add space discretization to property
     area_id = 25  # Just pick an ID
     rank = len(area_shape)
 
-    area = dataset.phenomena["area"]
-    area.object_id.expand(1)[-1] = area_id
+    park = dataset.phenomena["park"]
+    park.object_id.expand(1)[-1] = area_id
 
-    constant = area.property_sets["constant"]
+    constant = park.property_sets["constant"]
 
     space_discretization = constant.properties["space_discretization"]
 
@@ -333,17 +196,17 @@ def initialize_state(
     space_discretization.value.expand(1)[-1] = np.array(
         [area_shape], dtype=lue.dtype.Count).reshape(1, rank)
 
-    space_extent = area.property_sets["space_extent"]
+    space_extent = park.property_sets["space_extent"]
 
     # For the current time cell, the index of the active set. For the
     # first location in time, this is always 0.
     space_extent.object_tracker.active_set_index.expand(1)[-1] = 0
 
     # For the current time cell, the IDs of the active objects. In this
-    # case, this is always the one and only area object.
+    # case, this is always the one and only park object.
     space_extent.object_tracker.active_object_id.expand(1)[-1] = area_id
 
-    # For the current time cell, for the one area, an index into the
+    # For the current time cell, for the one park, an index into the
     # value array of different_shape / constant_shape values (biomass).
     # In this case, one biomass object array will be written, whose
     # index will be 0, since it is the first value.
@@ -361,10 +224,6 @@ def initialize_state(
     biomass_dtype = biomass.value.dtype
     biomass.value.expand(area_id, area_shape, 1)[0] = \
         1 + np.random.rand(*area_shape).astype(biomass_dtype)
-
-    # biomass_value = np.random.rand(*area_shape).astype(biomass_dtype)
-    # biomass_value = np.random.rand(*area_shape).astype(biomass_dtype)
-    # biomass.value.expand(area_id, area_shape, 1)[0] = biomass_value
 
 
     # deer ---------------------------------------------------------------------
@@ -458,25 +317,16 @@ def simulate_new_states(
     time_extent.time_domain.value[-1] += np.array(
         [0, nr_timesteps], dtype=lue.dtype.TickPeriodCount)
 
-    area = dataset.phenomena["area"]
-    space_extent = area.property_sets["space_extent"]
+    park = dataset.phenomena["park"]
+    space_extent = park.property_sets["space_extent"]
     area_id = space_extent.object_tracker.active_object_id[-1]
     biomass = space_extent.properties["biomass"]
     biomass_value = biomass.value[area_id]
-    current_biomass_value = biomass_value[-1]
+    biomass_array = biomass_value[-1]
 
     nr_neighbours = window_total(
-        np.full_like(current_biomass_value, fill_value=1), radius=1)
+        np.full_like(biomass_array, fill_value=1), radius=1)
     area_shape = biomass_value.shape[1:]
-
-    ### space_domain = space_extent.space_domain
-    ### assert space_domain.configuration.mobility == lue.Mobility.stationary
-    ### assert space_domain.configuration.item_type == lue.SpaceDomainItemType.box
-
-    ### assert space_domain.value.nr_boxes == 1
-    ### assert len(space_domain.value.array_shape) == 1  # A 1D array ...
-    ### # ... of four values: x1, y1, x2, y2
-    ### assert space_domain.value.array_shape[0] == 4  # Implies rank == 2
 
     area_extent = space_extent.space_domain.value[0]
 
@@ -485,37 +335,54 @@ def simulate_new_states(
     active_deer_set_idx = location.object_tracker.active_set_index[-1]
     deer_ids = location.object_tracker.active_object_id[active_deer_set_idx:]
     nr_deer = len(deer_ids)
-    current_deer_location = location.space_domain.value[-nr_deer:]
+    deer_location_array = location.space_domain.value[-nr_deer:]
     deer_weight = location.properties["weight"]
-    current_deer_weight = deer_weight.value[-nr_deer:]
+    deer_weight_array = deer_weight.value[-nr_deer:]
 
     # Iterate through time and update the simulated temporal state. Each
     # new state is written to the dataset.
     for t in range(nr_timesteps):
 
+        # Model ----------------------------------------------------------------
+        capacity = 1 - (biomass_array / carrying_capacity)
+        growth = capacity * growth_rate * biomass_array
+        biomass_array += growth
+
+        diffusion = \
+            d * (
+                window_total(biomass_array, radius=1) -
+                nr_neighbours * biomass_array
+            )
+
+        biomass_array += diffusion
+
+        # Iterate over all deer and update biomass in cell they are
+        # located in
+        # Create a field with for each cell the sum of a property of
+        # the deer located in that cell
+        deer_weight_per_cell = cell_total(
+            deer_location_array, deer_weight_array,
+            area_extent, area_shape, cell_size)
+
+        biomass_array = np.maximum(
+            0.01,
+            biomass_array - (deer_weight_per_cell * 0.0008))
+
+        # Update deer weights
+        deer_weight_array = np.minimum(750, deer_weight_array * 1.003)
+
+        # Update deer locations
+        enough_food = biomass_array > 0.5
+        deer_location_array = gaussian_move(
+            deer_location_array, enough_food, area_extent, cell_size,
+            area_shape, sigma=cell_size)
 
 
+        # I/O: write updated state to the data set -----------------------------
 
-
-
-
-        # For each timestep, do the folowing:
-        #
-        # deer
-        # - Determine IDs of active deer and write to dataset
-        # - Calculate positions in space and write to dataset
-        # - Calculate weights and write to dataset
-        #
-        # area
-        # - Determine IDs of active area and write to dataset
-        # - Calculate biomass and write to dataset
-
-
+        # deer state
         # We don't simulate birth and death, so the collection of deer
         # stays the same during the simulated period of time
-
-
-        # deer -----------------------------------------------------------------
 
         # For the current time cell, the index of the active set
         location.object_tracker.active_set_index.expand(1)[-1] = \
@@ -525,83 +392,31 @@ def simulate_new_states(
         location.object_tracker.active_object_id.expand(nr_deer)[-nr_deer:] = \
             deer_ids
 
-        ### # Update deer locations
-        ### # TODO Calculate deer locations
-        ### new_deer_location = current_deer_location
-        ### location.space_domain.value.expand(nr_deer)[-nr_deer:] = \
-        ###     new_deer_location
+        # Scalar deer weight per deer
+        deer_weight.value.expand(nr_deer)[-nr_deer:] = deer_weight_array
 
-        ### # Update deer weights
-        ### # TODO Calculate deer weights
-        ### new_deer_weight = current_deer_weight
-        ### deer_weight.value.expand(nr_deer)[-nr_deer:] = new_deer_weight
+        # Location in space per deer
+        location.space_domain.value.expand(nr_deer)[-nr_deer:] = \
+            deer_location_array
 
-
-        # area -----------------------------------------------------------------
-
+        # park state
         # For the current time cell, the index of the active set. There is
-        # only one area, so we can just use the previous index and add one.
+        # only one park, so we can just use the previous index and add one.
         space_extent.object_tracker.active_set_index.expand(1)[-1] = \
             space_extent.object_tracker.active_set_index[-1] + 1
 
         # For the current time cell, the IDs of the active objects. In this
-        # case, this is always the one and only area object.
+        # case, this is always the one and only park object.
         space_extent.object_tracker.active_object_id.expand(1)[-1] = area_id
 
-        # For the current time cell, for the one area, an index into the
+        # For the current time cell, for the one park, an index into the
         # value array of different_shape / constant_shape values (biomass).
         space_extent.object_tracker.active_object_index.expand(1)[-1] = \
             space_extent.object_tracker.active_object_index[-1] + 1
 
+        # Here we write a 2D raster with biomass per cell per park
+        biomass_value.expand(1)[-1:] = biomass_array
 
-
-        capacity = 1 - (current_biomass_value / carrying_capacity)
-        growth = capacity * growth_rate * current_biomass_value
-        new_biomass_value = current_biomass_value + growth
-
-        diffusion = \
-            d * (
-                window_total(new_biomass_value, radius=1) -
-                nr_neighbours * new_biomass_value
-            )
-
-        new_biomass_value += diffusion
-
-
-        # Iterate over all deer and update biomass in cell they are
-        # located in
-        # Create a field with for each cell the sum of a property of
-        # the deer located in that cell
-        deer_weight_per_cell = cell_total(
-            current_deer_location, current_deer_weight,
-            area_extent, area_shape)
-
-        new_biomass_value = np.maximum(
-            0.01,
-            new_biomass_value - (deer_weight_per_cell * 0.0008))
-
-        biomass_value.expand(1)[-1:] = new_biomass_value
-
-
-
-        enough_food = new_biomass_value > 0.5
-
-        # Update deer weights
-        new_deer_weight = np.minimum(750, current_deer_weight * 1.003)
-        deer_weight.value.expand(nr_deer)[-nr_deer:] = new_deer_weight
-
-
-        # Update deer locations
-        new_deer_location = gaussian_move(
-            current_deer_location, enough_food, area_extent, area_shape,
-            sigma=cell_size)
-        location.space_domain.value.expand(nr_deer)[-nr_deer:] = \
-            new_deer_location
-
-
-        current_deer_weight = new_deer_weight
-        current_deer_location = new_deer_location
-        current_biomass_value = new_biomass_value
 
         sys.stdout.write('.')
         sys.stdout.flush()

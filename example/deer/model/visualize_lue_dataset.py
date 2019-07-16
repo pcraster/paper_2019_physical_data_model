@@ -567,7 +567,7 @@ if draw_tracks:
         min_x_new, max_x_new, min_y_new, max_y_new, min_z_new, max_z_new)
 
 # ------------------------------------------------------------------------------
-phenomenon_name = "area"
+phenomenon_name = "park"
 phenomenon = dataset.phenomena[phenomenon_name]
 phenomenon_collection = bpy.data.collections.new(phenomenon_name)
 dataset_collection.children.link(phenomenon_collection)
