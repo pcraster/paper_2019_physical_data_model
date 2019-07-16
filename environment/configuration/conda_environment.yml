@@ -7,4 +7,5 @@ dependencies:
 - docopt
 - numpy
 - setuptools
+- scipy
 - sphinx
