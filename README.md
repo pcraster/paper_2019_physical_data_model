@@ -94,7 +94,7 @@ python -c "import lue"
 Here is an example session of using the LUE Python package. An empty
 dataset is created and validated.
 
-
+Python script:
 ```python
 # create_dataset.py
 import lue
@@ -102,6 +102,7 @@ import lue
 dataset = lue.create_dataset("my_first_dataset.lue")
 ```
 
+Shell commands:
 ```bash
 python create_dataset.py
 lue_validate my_first_dataset.lue
