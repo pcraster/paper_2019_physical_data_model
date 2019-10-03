@@ -60,7 +60,7 @@ def initialize_dataset(
 
     # Origin of locations in time
     epoch = lue.Epoch(
-        lue.Epoch.Kind.anno_domini, "2019-01-01", lue.Calendar.gregorian)
+        lue.Epoch.Kind.common_era, "2019-01-01", lue.Calendar.gregorian)
 
     # 3 hourly timesteps
     clock = lue.Clock(epoch, lue.Unit.hour, 3)
