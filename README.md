@@ -3,6 +3,10 @@ This repository contains a version of the LUE physical data model as
 presented in our 2019 manuscript, as well as example scripts and other
 files used in the preparation of that manuscript.
 
+- de Jong, K., Karssenberg, D., A physical data model for spatio-temporal
+objects, Environmental Modelling and Software (2019), doi:
+https://doi.org/10.1016/j.envsoft.2019.104553.
+
 | directory | contents |
 | --------- | -------- |
 | `example` | Deer-biomass model referred to from manuscript |
