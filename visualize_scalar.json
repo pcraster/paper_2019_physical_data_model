@@ -1,0 +1,45 @@
+{
+    "visualize": {
+        "datasets": [
+            {
+                "pathname": "$OBJECTS/Debug/lue/source/data_model/python/test/planets.lue",
+                "phenomena": [
+                    {
+                        "name": "planets",
+                        "id": {
+                            "slice": {
+                                "start": 0,
+                                "end": 500,
+                                "stride": 10
+                            }
+                        },
+                        "property_sets": [
+                            {
+                                "name": "constants",
+                                "domain": {
+                                    "time": {
+                                        "extent": {
+                                            "min": 0,
+                                            "max": 500
+                                        }
+                                    },
+                                    "space": {
+                                        "extent": {
+                                            "min": [0, 0],
+                                            "max": [500, 500]
+                                        }
+                                    }
+                                },
+                                "properties": [
+                                    {
+                                        "name": "gravity"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}
